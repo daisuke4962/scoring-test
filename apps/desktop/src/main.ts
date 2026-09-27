@@ -14,6 +14,8 @@ const LOG_FILE = join(app.getPath('userData'), 'logs', 'app.log');
 // Packaged, the web files sit beside the program, outside the archive, so express can serve them.
 const WEB_DIST = app.isPackaged ? join(process.resourcesPath, 'web') : join(__dirname, '..', 'web');
 const HOME = `http://localhost:${PORT}/instructor/`;
+// Where the source, the releases and anything anyone wants to change all live.
+const PROJECT_URL = 'https://github.com/daisuke4962/scoring-test';
 
 // ---------- log ----------
 mkdirSync(dirname(LOG_FILE), { recursive: true });
@@ -65,6 +67,7 @@ function buildMenu() {
         { label: 'Developer tools', accelerator: 'F12', click: () => { BrowserWindow.getAllWindows()[0]?.webContents.toggleDevTools(); } },
         { type: 'separator' },
         { label: `Version ${app.getVersion()}`, enabled: false },
+        { label: 'Project page  /  プロジェクトのページ', click: () => { shell.openExternal(PROJECT_URL); } },
         { label: 'Quit  /  終了', role: 'quit' },
       ],
     },

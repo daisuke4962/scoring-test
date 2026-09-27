@@ -1,0 +1,32 @@
+{
+  "name": "scoring-test",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Taekwondo judge scoring test: instructor PC serves clips over LAN, trainees tap on phones.",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,magenta \"npm run dev -w apps/server\" \"npm run dev -w apps/web\"",
+    "build": "npm run build -w apps/web",
+    "start": "npm run start -w apps/server",
+    "test": "node --test packages/shared/src/judge.test.ts",
+    "check": "tsc -p apps/web/tsconfig.json && tsc -p apps/server/tsconfig.json && tsc -p apps/desktop/tsconfig.json",
+    "desktop": "npm run build && npm run start -w apps/desktop",
+    "dist": "npm run build && npm run dist -w apps/desktop"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daisuke4962/scoring-test.git"
+  },
+  "bugs": {
+    "url": "https://github.com/daisuke4962/scoring-test/issues"
+  },
+  "homepage": "https://github.com/daisuke4962/scoring-test#readme"
+}

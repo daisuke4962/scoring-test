@@ -1,0 +1,21 @@
+{
+  "name": "@scoring-test/desktop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Scoring Test: the instructor's program, packaged so it runs without Node.",
+  "main": "build/main.cjs",
+  "scripts": {
+    "bundle": "node bundle.mjs",
+    "check": "tsc -p tsconfig.json",
+    "start": "node bundle.mjs && electron .",
+    "dist": "node bundle.mjs && electron-builder --win nsis --publish never && node collect.mjs"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "^26.15.3",
+    "electron-updater": "^6.8.9",
+    "esbuild": "^0.28.2"
+  },
+  "productName": "Scoring Test",
+  "author": "Scoring Test"
+}

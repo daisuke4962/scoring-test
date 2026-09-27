@@ -1,0 +1,3 @@
+# Let git decide line endings, but keep the Windows scripts CRLF so they run when double-clicked.
+* text=auto
+*.cmd text eol=crlf

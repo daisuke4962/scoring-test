@@ -1,0 +1,37 @@
+# How the installer is made. One-click, no administrator rights, installs for the person who runs
+# it, and puts a shortcut on the desktop.
+#
+# Updates come from the GitHub releases of the repository named at the bottom. Fill in `owner`
+# before building anything for other people: until it is a real account, an installed copy looks
+# for a repository that does not exist and the check fails quietly into the log.
+appId: com.scoringtest.instructor
+productName: Scoring Test
+artifactName: ScoringTest-Setup-${version}.${ext}
+
+directories:
+  output: release
+
+# The shell and the server. The pages go next to the program instead of inside the archive,
+# because express serves them from disk.
+files:
+  - build/**/*
+extraResources:
+  - from: web
+    to: web
+
+npmRebuild: false
+
+win:
+  target:
+    - nsis
+
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+publish:
+  provider: github
+  owner: daisuke4962
+  repo: scoring-test

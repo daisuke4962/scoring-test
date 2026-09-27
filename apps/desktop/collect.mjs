@@ -4,18 +4,22 @@
 //   ScoringTest-Setup-<version>.exe   what a person installs
 //   latest.yml                        how an installed copy learns there is a newer one
 //   *.blockmap                        lets it download only the changed parts
-import { copyFileSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const from = join(here, 'release');
 const to = join(from, 'upload');
+// Only this version. Earlier builds stay in `release`, but a release page should not be handed
+// two installers to choose between.
+const { version } = JSON.parse(readFileSync(join(here, 'package.json'), 'utf8'));
 
 rmSync(to, { recursive: true, force: true });
 mkdirSync(to, { recursive: true });
 
-const wanted = readdirSync(from).filter(f => f === 'latest.yml' || f.endsWith('.exe') || f.endsWith('.blockmap'));
+const wanted = readdirSync(from).filter(f =>
+  f === 'latest.yml' || ((f.endsWith('.exe') || f.endsWith('.blockmap')) && f.includes(version)));
 for (const f of wanted) copyFileSync(join(from, f), join(to, f));
 
 const mb = (f) => (statSync(join(to, f)).size / 1024 / 1024).toFixed(1) + ' MB';

@@ -18,15 +18,39 @@ const HOME = `http://localhost:${PORT}/instructor/`;
 const PROJECT_URL = 'https://github.com/daisuke4962/scoring-test';
 
 // ---------- log ----------
-mkdirSync(dirname(LOG_FILE), { recursive: true });
-try { if (statSync(LOG_FILE).size > 1_000_000) writeFileSync(LOG_FILE, ''); } catch { /* first run */ }
+// A log that fails quietly is worse than none: when someone says it will not start, this file is
+// the whole story. So a failed write is remembered, said out loud in the menu, and the log moves
+// somewhere it can be written rather than stopping.
+let logFile = LOG_FILE;
+let logProblem: string | null = null;
+
+try {
+  mkdirSync(dirname(LOG_FILE), { recursive: true });
+  if (statSync(LOG_FILE).size > 1_000_000) writeFileSync(LOG_FILE, '');
+} catch (err) {
+  if ((err as NodeJS.ErrnoException).code !== 'ENOENT') logProblem = (err as Error).message;
+}
 
 function log(...parts: unknown[]) {
   const line = new Date().toISOString() + '  ' + parts
     .map(p => (p instanceof Error ? p.stack || p.message : typeof p === 'string' ? p : JSON.stringify(p)))
     .join(' ');
-  try { appendFileSync(LOG_FILE, line + '\n'); } catch { /* nothing useful to do about it */ }
-  process.stdout.write(line + '\n');
+  try {
+    appendFileSync(logFile, line + '\n');
+  } catch (err) {
+    const first = !logProblem;
+    if (first) logProblem = `${logFile}: ${(err as Error).message}`;
+    // Somewhere is better than nowhere. The temp folder is writable when little else is.
+    const fallback = join(app.getPath('temp'), 'scoring-test.log');
+    if (logFile !== fallback) {
+      logFile = fallback;
+      // Say in the log why the log moved, or the next reader has to guess.
+      const note = first ? new Date().toISOString() + `  log moved here: ${logProblem}\n` : '';
+      try { appendFileSync(logFile, note + line + '\n'); } catch { /* then there is truly nowhere */ }
+    }
+  }
+  // There is no console when the app is started from a shortcut, and that must not break logging.
+  try { process.stdout.write(line + '\n'); } catch { /* no console attached */ }
 }
 // The server writes the session to the terminal. In here, the log file is the terminal.
 console.log = log;
@@ -53,6 +77,21 @@ function fatal(err: NodeJS.ErrnoException) {
   app.exit(1);
 }
 
+/** Opens the log, and says so first if it is not where it should be. */
+function openLog() {
+  if (logProblem) {
+    dialog.showMessageBoxSync({
+      type: 'warning',
+      title: both('Log', 'ログ'),
+      message: both('The log could not be written in its usual place.', 'ログを本来の場所に書けませんでした。'),
+      detail: both(`What went wrong: ${logProblem}\nWriting to: ${logFile}`,
+                   `起きたこと: ${logProblem}\n今の書き込み先: ${logFile}`),
+      buttons: [both('Open it', '開く')],
+    });
+  }
+  shell.openPath(logFile);
+}
+
 function buildMenu() {
   return Menu.buildFromTemplate([
     {
@@ -61,7 +100,7 @@ function buildMenu() {
         { label: 'Check for updates  /  更新を確認', click: () => check(true) },
         { type: 'separator' },
         { label: 'Data folder  /  データフォルダ', click: () => { shell.openPath(DATA_DIR); } },
-        { label: 'Log  /  ログ', click: () => { shell.openPath(LOG_FILE); } },
+        { label: 'Log  /  ログ', click: () => { openLog(); } },
         { type: 'separator' },
         { label: 'Reload  /  読み込み直す', accelerator: 'F5', click: () => { BrowserWindow.getAllWindows()[0]?.loadURL(HOME); } },
         { label: 'Developer tools', accelerator: 'F12', click: () => { BrowserWindow.getAllWindows()[0]?.webContents.toggleDevTools(); } },
@@ -190,6 +229,7 @@ function createWindow() {
 async function main() {
   log(`Scoring Test ${app.getVersion()} starting  (packaged: ${app.isPackaged})`);
   log(`data: ${DATA_DIR}`);
+  log(`log:  ${logFile}`);
 
   // The server reads these instead of working the paths out from where its own file sits.
   process.env.ST_DATA_DIR = DATA_DIR;

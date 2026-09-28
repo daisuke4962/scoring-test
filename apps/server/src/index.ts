@@ -170,7 +170,7 @@ async function joinAddresses(): Promise<JoinAddress[]> {
   const list = lanCandidates();
   return Promise.all(list.map(async c => {
     const url = `http://${c.address}:${PORT}/trainee/?s=${SESSION}`;
-    return { ...c, url, qr: await QRCode.toDataURL(url, { margin: 1, width: 320 }) };
+    return { ...c, url, qr: await QRCode.toDataURL(url, { margin: 1, width: 640 }) };
   }));
 }
 

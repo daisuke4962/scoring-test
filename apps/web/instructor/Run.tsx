@@ -38,6 +38,7 @@ interface Props {
 /** Running a test: connect phones, send a question, play it, and read the results as they come in. */
 export function Run({ t, info, trainees, taps, selected, onSelect, entry, settings, saveSettings, current, attempts, loadQuestion, play, stop, nextGroup }: Props) {
   const [addrIndex, setAddrIndex] = useState(0);
+  const [bigQr, setBigQr] = useState(false);   // the QR across the whole screen, for a room
   const [netMode, setNetMode] = useState<NetMode>(loadNetMode);
   const [picked, setPicked] = useState('');
   const [pickedAttempt, setPickedAttempt] = useState('');
@@ -61,6 +62,13 @@ export function Run({ t, info, trainees, taps, selected, onSelect, entry, settin
     const i = splitQs.findIndex(x => x.id === q.id);
     return i >= 0 ? fmt(t.qLabel, { n: i + 1 }) : `${clock(q.start)}–${clock(q.end)}`;
   };
+
+  useEffect(() => {
+    if (!bigQr) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setBigQr(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [bigQr]);
 
   function chooseNetMode(m: NetMode) {
     setNetMode(m);
@@ -182,9 +190,12 @@ export function Run({ t, info, trainees, taps, selected, onSelect, entry, settin
           <h2>{t.join}</h2>
           {!address ? <div className="msg err">{t.noAddress}</div> : (
             <>
-              <img src={address.qr} alt={t.qrAlt} />
+              <button className="qr-open" onClick={() => setBigQr(true)} aria-label={t.showBig}>
+                <img src={address.qr} alt={t.qrAlt} />
+              </button>
               <div className="code">{info.session}</div>
               <div className="url">{address.url}</div>
+              <button className="btn" style={{ alignSelf: 'flex-start' }} onClick={() => setBigQr(true)}>{t.showBig}</button>
               {info.addresses.length > 1 && (
                 <>
                   <div className="status">{t.tryOtherNetwork}</div>
@@ -365,6 +376,15 @@ export function Run({ t, info, trainees, taps, selected, onSelect, entry, settin
           </div>
         </div>
       </div>
+
+      {bigQr && address && (
+        <div className="qr-full" onClick={() => setBigQr(false)}>
+          <img src={address.qr} alt={t.qrAlt} />
+          <div className="qr-full-code">{info.session}</div>
+          <div className="qr-full-url">{address.url}</div>
+          <div className="qr-full-help">{t.bigQrHelp}</div>
+        </div>
+      )}
     </>
   );
 }

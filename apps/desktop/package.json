@@ -1,7 +1,7 @@
 {
   "name": "@scoring-test/desktop",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Scoring Test: the instructor's program, packaged so it runs without Node.",
   "main": "build/main.cjs",
   "scripts": {

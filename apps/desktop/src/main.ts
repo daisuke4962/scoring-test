@@ -213,8 +213,12 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1320, height: 900, minWidth: 900, minHeight: 620,
     title: 'Scoring Test', backgroundColor: '#0f172a', show: false,
+    // Left to itself the menu bar stays hidden until Alt is pressed, and nobody finds it that way.
+    autoHideMenuBar: false,
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
+  win.setMenuBarVisibility(true);   // belt and braces: the option above is not always enough
+  log(`menu bar visible: ${win.isMenuBarVisible()}`);
   win.once('ready-to-show', () => win.show());
   win.loadURL(HOME);
   // A link to anywhere else belongs in the person's own browser, not in this window.

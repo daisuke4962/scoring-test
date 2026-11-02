@@ -129,7 +129,8 @@ table.taps td.n{text-align:right}
 .field.sm{height:34px;width:90px;font-size:14px;padding:0 8px}
 .settings-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13px}
 .q-list{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
-.q-item{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--panel);font-size:13px;text-align:left;width:100%}
+.clip-of{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.q-item{display:grid;grid-template-columns:auto auto auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--panel);font-size:13px;text-align:left;width:100%}
 .q-item[aria-pressed="true"]{outline:2px solid var(--chung);outline-offset:-2px;background:#1b2b47}
 .q-item[aria-pressed="true"] b::before{content:"\2713 ";color:#8cb8ff}
 .field-label{display:flex;flex-direction:column;gap:4px}

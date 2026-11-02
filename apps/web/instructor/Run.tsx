@@ -25,6 +25,7 @@ interface Props {
   selected: string;
   onSelect: (id: string) => void;
   entry: MarksEntry | undefined;
+  marks: Record<string, MarksEntry>;
   settings: JudgeSettings;
   saveSettings: (s: JudgeSettings) => void;
   current: Question | null;
@@ -36,32 +37,89 @@ interface Props {
 }
 
 /** Running a test: connect phones, send a question, play it, and read the results as they come in. */
-export function Run({ t, info, trainees, taps, selected, onSelect, entry, settings, saveSettings, current, attempts, loadQuestion, play, stop, nextGroup }: Props) {
+export function Run({ t, info, trainees, taps, selected, onSelect, entry, marks, settings, saveSettings, current, attempts, loadQuestion, play, stop, nextGroup }: Props) {
   const [addrIndex, setAddrIndex] = useState(0);
   const [bigQr, setBigQr] = useState(false);   // the QR across the whole screen, for a room
   const [netMode, setNetMode] = useState<NetMode>(loadNetMode);
   const [picked, setPicked] = useState('');
   const [pickedAttempt, setPickedAttempt] = useState('');
+  const [clipFilter, setClipFilter] = useState('');     // '' = every clip
+  const [order, setOrder] = useState<string[] | null>(null);   // null = the order they were marked in
 
   const video = info.videos.find(v => v.id === selected) ?? null;
   // Clips never opened under "Make questions" have no saved length yet; read it from the file.
   const probed = useDuration(video && entry && entry.duration == null ? video.url : null);
   const duration = entry?.duration ?? probed;
-  const wholeId = video ? `${video.id}@all` : '';
-  const questions = useMemo<Question[]>(() => {
-    if (!video || !entry) return [];
-    const qs = buildQuestionSet(video.id, entry.marks, duration ?? Infinity, settings);
-    return duration != null ? [...qs, wholeClip(video.id, entry.marks, duration)] : qs;
-  }, [video, entry, duration, settings]);
-  const pickedQ = questions.find(q => q.id === picked) ?? questions[0] ?? null;
-  const splitQs = questions.filter(q => q.id !== wholeId);
+  // Every clip that has been marked contributes its questions. A clip is left out until its
+  // length is known, because a question cannot end where the clip does not.
+  const byClip = useMemo(() => {
+    const out: { video: typeof info.videos[number]; questions: Question[]; whole: Question }[] = [];
+    for (const v of info.videos) {
+      const e = marks[v.id];
+      if (!e || e.marks.length === 0) continue;
+      const dur = e.duration ?? (v.id === selected ? probed : null);
+      if (dur == null) continue;
+      out.push({ video: v, questions: buildQuestionSet(v.id, e.marks, dur, settings), whole: wholeClip(v.id, e.marks, dur) });
+    }
+    return out;
+  }, [info.videos, marks, selected, probed, settings]);
+
+  const shownClips = byClip.filter(c => !clipFilter || c.video.id === clipFilter);
+  const naturalQs = shownClips.flatMap(c => c.questions);
+  const wholeQs = shownClips.map(c => c.whole);
+  // The test's running order. Questions marked after a shuffle join the end rather than vanish.
+  const splitQs = useMemo(() => {
+    if (!order) return naturalQs;
+    const byId = new Map(naturalQs.map(q => [q.id, q]));
+    const kept = order.map(id => byId.get(id)).filter((q): q is Question => !!q);
+    return [...kept, ...naturalQs.filter(q => !order.includes(q.id))];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [naturalQs.map(q => q.id).join(), order]);
+
+  const pickable = [...splitQs, ...wholeQs];
+  const pickedQ = pickable.find(q => q.id === picked) ?? splitQs[0] ?? pickable[0] ?? null;
   const pickedIndex = pickedQ ? splitQs.findIndex(q => q.id === pickedQ.id) : -1;
-  const nextQ = pickedIndex >= 0 ? splitQs[pickedIndex + 1] ?? null : null;
+  const nextQ = pickedIndex >= 0 ? splitQs[pickedIndex + 1] ?? null : splitQs[0] ?? null;
+  // The clip the picked question belongs to, which is what the preview shows.
+  const qVideo = pickedQ ? info.videos.find(v => v.id === pickedQ.videoId) ?? null : video;
+  const clipName = (id: string) => info.videos.find(v => v.id === id)?.name ?? id;
   const qName = (q: Question) => {
     if (q.id.endsWith('@all')) return t.wholeClip;
-    const i = splitQs.findIndex(x => x.id === q.id);
+    // Numbered within its own clip, so the label matches what "Make questions" shows.
+    const own = byClip.find(c => c.video.id === q.videoId)?.questions ?? [];
+    const i = own.findIndex(x => x.id === q.id);
     return i >= 0 ? fmt(t.qLabel, { n: i + 1 }) : `${clock(q.start)}–${clock(q.end)}`;
   };
+
+  /** Pick a question, and bring the rest of the page to its clip. */
+  function pick(q: Question) {
+    setPicked(q.id);
+    if (q.videoId !== selected) onSelect(q.videoId);
+  }
+  /**
+   * A new order every time, but each clip's questions stay together: a question from another clip
+   * means every phone has to fetch that clip, and a seminar network is not the place to do that
+   * once per question. So the clips are shuffled, and the questions inside each one.
+   */
+  function shuffleOrder() {
+    const shuffled = <T,>(xs: T[]) => {
+      const a = [...xs];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    };
+    const clips = shuffled([...new Set(splitQs.map(q => q.videoId))]);
+    const ids = clips.flatMap(id => shuffled(splitQs.filter(q => q.videoId === id)).map(q => q.id));
+    setOrder(ids);
+    const first = splitQs.find(q => q.id === ids[0]);
+    if (first) pick(first);
+  }
+  function naturalOrder() {
+    setOrder(null);
+    if (naturalQs[0]) pick(naturalQs[0]);
+  }
 
   useEffect(() => {
     if (!bigQr) return;
@@ -76,7 +134,7 @@ export function Run({ t, info, trainees, taps, selected, onSelect, entry, settin
   }
   function goNext() {
     if (!nextQ) return;
-    setPicked(nextQ.id);
+    pick(nextQ);   // the next question may belong to another clip, so bring the page with it
     loadQuestion(nextQ);
   }
 
@@ -112,7 +170,7 @@ export function Run({ t, info, trainees, taps, selected, onSelect, entry, settin
     const seek = () => { if (v.paused) v.currentTime = pickedQ.start; };
     if (v.readyState >= 1) seek(); else v.addEventListener('loadedmetadata', seek, { once: true });
     return () => v.removeEventListener('loadedmetadata', seek);
-  }, [pickedQ?.id, pickedQ?.start, selected]);
+  }, [pickedQ?.id, pickedQ?.start, qVideo?.id]);
   useEffect(() => {
     const v = previewRef.current;
     if (!v || !current) return;
@@ -235,26 +293,37 @@ export function Run({ t, info, trainees, taps, selected, onSelect, entry, settin
           <h2>{t.question}</h2>
           <label className="field-label">
             <span className="status">{t.clip}</span>
-            <select className="sel" value={selected} onChange={e => { onSelect(e.target.value); setPicked(''); }}>
-              {info.videos.length === 0 && <option value="">—</option>}
+            <select className="sel" value={clipFilter} onChange={e => { setClipFilter(e.target.value); setPicked(''); }}>
+              <option value="">{t.allClips}</option>
               {info.videos.map(v => <option key={v.id} value={v.id}>{v.name} ({(v.size / 1e6).toFixed(1)} MB)</option>)}
             </select>
           </label>
           <div className="stage a-stage">
-            {video
-              ? <video ref={previewRef} src={video.url} muted controls playsInline preload="auto" />
+            {qVideo
+              ? <video ref={previewRef} src={qVideo.url} muted controls playsInline preload="auto" />
               : <div className="overlay">{t.chooseClipFirst}</div>}
-            {video && !pickedQ && <div className="overlay">{t.previewHint}</div>}
+            {qVideo && !pickedQ && <div className="overlay">{t.previewHint}</div>}
           </div>
           {video && !entry && <div className="status">{t.loadingMarks}</div>}
-          {entry && entry.marks.length === 0 && <div className="msg info">{t.noMarksRun}</div>}
-          <span className="status">{t.questions}</span>
+          {byClip.length === 0 && entry && entry.marks.length === 0 && <div className="msg info">{t.noMarksRun}</div>}
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="status">
+              {t.questions} · {splitQs.length}
+              {order && <> · <b>{t.shuffled}</b></>}
+              {pickedIndex >= 0 && <> · {fmt(t.qProgress, { n: pickedIndex + 1, total: splitQs.length })}</>}
+            </span>
+            <span className="row">
+              <button className="icon-btn" disabled={splitQs.length < 2} onClick={shuffleOrder}>{t.shuffle}</button>
+              {order && <button className="icon-btn" onClick={naturalOrder}>{t.inOrder}</button>}
+            </span>
+          </div>
           <div className="q-list">
-            {questions.map(q => (
-              <button key={q.id} className="q-item" aria-pressed={pickedQ?.id === q.id} onClick={() => setPicked(q.id)}>
+            {splitQs.concat(wholeQs).map(q => (
+              <button key={q.id} className="q-item" aria-pressed={pickedQ?.id === q.id} onClick={() => pick(q)}>
                 <b>{qName(q)}</b>
                 <span className="mono">{clock(q.start)}–{clock(q.end)}</span>
                 <span className="muted">{q.marks.length === 0 ? t.quiet : fmt(t.marksCount, { n: q.marks.length })}</span>
+                <span className="muted clip-of">{byClip.length > 1 ? clipName(q.videoId) : ''}</span>
                 {current?.id === q.id ? <span className="pill on">{t.sent}</span> : <span />}
               </button>
             ))}
@@ -265,7 +334,7 @@ export function Run({ t, info, trainees, taps, selected, onSelect, entry, settin
               {t.play} ({loadedCount}/{online.length})
             </button>
             <button className="btn" onClick={stopAll}>{t.stop}</button>
-            <button className="btn" disabled={!nextQ} onClick={goNext}>{t.nextQuestion}</button>
+            <button className="btn" disabled={!nextQ || nextQ.id === pickedQ?.id} onClick={goNext}>{t.nextQuestion}</button>
           </div>
         </div>
 

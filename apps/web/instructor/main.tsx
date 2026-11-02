@@ -57,10 +57,12 @@ function App() {
     return () => sock.stop();
   }, []);
 
-  // Fetch a clip's saved marks the first time it is chosen.
+  // Every clip's marks, not only the open one: a test can draw its questions from all of them.
+  // Each reply fills one entry in, so this settles after one round of requests.
   useEffect(() => {
-    if (connected && selected && !marks[selected]) sockRef.current?.send({ type: 'getMarks', videoId: selected });
-  }, [connected, selected, marks]);
+    if (!connected || !info) return;
+    for (const v of info.videos) if (!marks[v.id]) sockRef.current?.send({ type: 'getMarks', videoId: v.id });
+  }, [connected, info, marks]);
 
   const send = useCallback((m: ClientMessage) => sockRef.current?.send(m), []);
   /** Save to disk only (autosave while marking). */
@@ -129,7 +131,7 @@ function App() {
         <Run
           t={t} info={info} trainees={trainees} taps={taps} selected={selected} onSelect={setSelected}
           entry={marks[selected]} settings={info.settings} saveSettings={saveSettings}
-          current={current} attempts={attempts} loadQuestion={loadQuestion} play={play} stop={stop} nextGroup={nextGroup}
+          marks={marks} current={current} attempts={attempts} loadQuestion={loadQuestion} play={play} stop={stop} nextGroup={nextGroup}
         />
       )}
     </div>
